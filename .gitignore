@@ -1,0 +1,7 @@
+build/
+*.o
+*.a
+node_modules/
+.vscode/
+*.swp
+.DS_Store
