@@ -1,0 +1,16 @@
+travel_notes includes the following third-party software. Each keeps its own license;
+the license texts follow, and are also in the third_party/ folder of the repository.
+
+md4c 0.5.2 (the Markdown parser)
+  Copyright (c) 2016-2024 Martin Mitáš
+  MIT License
+  https://github.com/mity/md4c
+  Files: third_party/md4c/md4c.c, third_party/md4c/md4c.h (unmodified)
+
+MathJax 3.2.2 (math typesetting), the component es5/tex-svg-full.js
+  Copyright (c) 2009-2023 The MathJax Consortium
+  Apache License 2.0
+  https://www.mathjax.org
+  File: third_party/mathjax/tex-svg-full.js (unmodified, from the npm package mathjax@3.2.2)
+
+travel_notes itself is dedicated to the public domain under CC0 1.0 (see LICENSE).

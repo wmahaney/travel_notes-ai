@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Everything comes from this site. The only other requests the page can make are
+     https images that a note itself asks for. See docs/ARCHITECTURE.md, "Security". -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: https:; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="description" content="A Markdown note editor with LaTeX math. It runs in your browser and uploads nothing.">
+<title>travel_notes</title>
+<!-- An empty icon, so the browser does not ask the server for /favicon.ico. -->
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+
+<header class="toolbar" role="toolbar" aria-label="Note">
+  <span class="brand">travel_notes</span>
+  <button type="button" id="btn-compile" class="primary" title="Typeset the note (Ctrl+Enter)">Compile</button>
+  <button type="button" id="btn-toggle" aria-pressed="true" title="Show or hide the preview (Ctrl+\)">Preview</button>
+  <span class="sep" aria-hidden="true"></span>
+  <button type="button" id="btn-new" title="Start an empty note">New note</button>
+  <button type="button" id="btn-open" title="Open a .md file from this computer">Open</button>
+  <button type="button" id="btn-save" title="Download the source as a .md file">Download .md</button>
+  <button type="button" id="btn-pdf" title="Opens the print dialog. Choose “Save as PDF” there.">Download PDF</button>
+  <span class="grow"></span>
+  <button type="button" id="btn-theme" title="Switch between light and dark">Dark</button>
+  <input type="file" id="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden>
+</header>
+
+<main id="panes" class="panes">
+  <section class="pane editor">
+    <label class="visually-hidden" for="source">Markdown source</label>
+    <textarea id="source" spellcheck="true" autocomplete="off" autocapitalize="off"
+      placeholder="Write Markdown here. Math goes between dollar signs: $x^2$ in a line, $$ ... $$ on its own. Then press Compile."></textarea>
+  </section>
+  <div id="divider" class="divider" role="separator" aria-orientation="vertical" aria-label="Resize the two panes" tabindex="0"></div>
+  <section class="pane preview" aria-label="Preview">
+    <article id="preview" class="tn-doc"></article>
+  </section>
+</main>
+
+<section id="errors" class="errors" aria-label="Math errors" hidden>
+  <div class="errors-head">
+    <strong id="errors-title">Math errors</strong>
+    <span class="grow"></span>
+    <button type="button" id="btn-log" title="Download this list as a text file">Download .log</button>
+    <button type="button" id="btn-errors-close" aria-label="Close the list of errors">Close</button>
+  </div>
+  <ol id="error-list"></ol>
+</section>
+
+<footer class="status">
+  <span id="status" role="status" aria-live="polite">Loading.</span>
+  <button type="button" id="btn-errors" class="status-button" hidden></button>
+  <span class="grow"></span>
+  <a href="THIRD_PARTY.txt">Licenses</a>
+  <a href="https://wmahaney.github.io/code/" rel="noopener">William Mahaney</a>
+</footer>
+
+</body>
+</html>
