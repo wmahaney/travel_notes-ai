@@ -1,0 +1,32 @@
+<h1>Math next to Markdown</h1>
+<p>Inline <span class="tn-math tn-inline" data-line="3">\(a_1 + a_2 = b_{12}\)</span> and <span class="tn-math tn-inline" data-line="3">\(c*d*e\)</span> and <span class="tn-math tn-inline" data-line="3">\(f\_g\)</span>: underscores, asterisks and
+backslashes inside math are left alone.</p>
+<p>Emphasis around math: <em>the value <span class="tn-math tn-inline" data-line="6">\(x^2\)</span> is large</em> and <strong><span class="tn-math tn-inline" data-line="6">\(y\)</span> is small</strong>.</p>
+<p>Display math on its own lines:</p>
+<p><span class="tn-math tn-display" data-line="10">\[ \int_0^1 x^2 \, dx = \frac{1}{3} \]</span></p>
+<p>An aligned environment with a label:</p>
+<p><span class="tn-math tn-display" data-line="16">\[ \begin{align} a &amp;= b + c \label{eq:first} \\ d &amp;&lt; e \&amp; f \end{align} \]</span></p>
+<p>A macro: <span class="tn-math tn-inline" data-line="23">\(\newcommand{\R}{\mathbb{R}} f\colon \R \to \R\)</span>.</p>
+<p>Dollar signs in prose: it costs $5, then <span class="tn-math tn-inline" data-line="25">\(10, or 15\)</span> in total. An escaped $ sign.</p>
+<ul>
+<li>a list item with <span class="tn-math tn-inline" data-line="27">\(\alpha_i\)</span><ul>
+<li>a nested item with <span class="tn-math tn-display" data-line="28">\[\sum_{k=1}^n k = \frac{n(n+1)}{2}\]</span></li>
+</ul>
+</li>
+</ul>
+<blockquote>
+<p>A quotation with <span class="tn-math tn-inline" data-line="30">\(\ell\)</span>-isogenies
+and <span class="tn-math tn-display" data-line="31">\[\Phi_\ell(X, Y) = 0\]</span> on the next line.</p>
+</blockquote>
+<table>
+<thead>
+<tr><th class="tn-right"><span class="tn-math tn-inline" data-line="33">\(x\)</span></th><th class="tn-right"><span class="tn-math tn-inline" data-line="33">\(x^2\)</span></th></tr>
+</thead>
+<tbody>
+<tr><td class="tn-right">2</td><td class="tn-right"><span class="tn-math tn-inline" data-line="35">\(4\)</span></td></tr>
+</tbody>
+</table>
+<p>Code keeps its dollars: <code>$not math$</code>.</p>
+<pre><code>$$ also not math $$
+</code></pre>
+<p>Unterminated: $x + y and $$z.</p>

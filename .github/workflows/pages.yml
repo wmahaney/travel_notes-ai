@@ -1,0 +1,85 @@
+name: Test, build and deploy
+
+# Every push tests the core and builds the site. Pushes to main also deploy it to
+# GitHub Pages. One manual step, once: Settings -> Pages -> Source: "GitHub Actions".
+on:
+  push:
+  workflow_dispatch:
+
+# The least the jobs need. The deploy job adds what Pages requires, and nothing else.
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # The Emscripten release the site is built with. This is the version the code was
+  # built and tested with; see docs/ARCHITECTURE.md before changing it.
+  EMSDK_VERSION: "3.1.6"
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      # Every action is pinned to a commit. The tag it corresponded to is in the comment.
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1          # v7.0.1
+
+      - name: Unit tests, golden files, hostile inputs
+        run: make test
+
+      - name: The same under AddressSanitizer and UBSan
+        run: make asan
+
+      - name: Fuzz smoke test
+        run: make fuzz-smoke
+
+      - name: Install Emscripten
+        uses: mymindstorm/setup-emsdk@4528d102f7230f0e7b276855c01ea1159be0e984  # v16
+        with:
+          version: ${{ env.EMSDK_VERSION }}
+
+      - name: Build the site
+        run: make web
+
+      - name: The site stays under 10 MB
+        run: |
+          size=$(du -sb build/web | cut -f1)
+          echo "site size: $size bytes"
+          test "$size" -lt 10000000
+
+      # Loads the built site in the runner's Chrome: compiles a note, checks the error
+      # log, the draft, the theme, printing, and that nothing is fetched from elsewhere.
+      # puppeteer-core is a test tool only; the site uses nothing from npm.
+      # setup-emsdk puts Emscripten's own Node (14) first on PATH; the check needs the
+      # runner's Node (18 or later), so the emsdk directories are dropped for this step.
+      - name: Browser check
+        run: |
+          PATH="$(printf '%s' "$PATH" | tr ':' '\n' | grep -v "^$EMSDK" | paste -sd: -)"
+          echo "node $(node --version) at $(command -v node)"
+          npm install --no-save --no-audit --no-fund puppeteer-core@23
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)" \
+            node tests/browser/check.mjs build/web
+
+      - name: Upload the site
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9  # v5.0.0
+        with:
+          path: build/web
+
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write        # to publish
+      id-token: write     # to prove the artifact came from this workflow
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346           # v5.0.1
