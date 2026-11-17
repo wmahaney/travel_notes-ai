@@ -1,8 +1,9 @@
 /* A small mutation fuzzer for the renderer.
  *     build/asan/fuzz RUNS seed-file...
  * Each run takes a seed file, mutates it (flips, inserts, deletes and copies bytes, and
- * splices in Markdown and HTML tokens), renders it, and checks the output with
- * tests/tn_check.h. Built with AddressSanitizer and UBSan, so memory errors stop it.
+ * splices in Markdown, HTML and TeX tokens), renders it, and checks the HTML with
+ * tests/tn_check.h. The LaTeX and the outline of the same input are produced too, and
+ * must be clean UTF-8. Built with AddressSanitizer and UBSan, so memory errors stop it.
  * The random sequence is fixed, so a failure can be reproduced.
  */
 #include "tnotes.h"
@@ -26,6 +27,8 @@ static const char *TOKENS[] = {
     "javascript:", "https://", "http://", "data:", "mailto:", "<script>", "</script>", "<img src=x onerror=x>",
     "- [x] ", "\t", "  \n", "\r\n", "\xC3", "\xFF", "\xE2\x88\x80", "\\begin{align}", "\\end{align}", "</span>",
     " onerror=\"", "<!--", "-->", "[a]: ", "===", "---",
+    "%", "\\%", " % c\n", "\n$$\n", "\n+ ", "> **Theorem.** ", "> **Proof (", ").** ", "**Lemma**", "\n## ", "(#", "](#a)",
+    "\\newcommand{\\R}{", "\\renewcommand", "}", "{", "\\end{verbatim}", "\\begin{gather*}", "~~~", "| a | b |\n|--|:-:|\n", "- [ ] ", "\n\n# a\n",
 };
 #define NTOK (sizeof TOKENS / sizeof *TOKENS)
 
@@ -81,6 +84,27 @@ int main(int argc, char **argv)
             return 1;
         }
         tn_free(html);
+
+        for (int which = 0; which < 2; which++) {
+            char *out = NULL; size_t on = 0, bad = 0;
+            rc = which ? tn_outline(buf, n, &out, &on) : tn_latex(buf, n, &out, &on);
+            if (rc != TN_OK) { fprintf(stderr, "fuzz: run %ld (%s), %s: %s\n", r, path, which ? "outline" : "LaTeX", tn_strerror(rc)); return 1; }
+            /* The outline holds tabs between its fields; nothing else may be a control character. */
+            size_t from = 0;
+            int ok = 1;
+            while (ok && from < on) {
+                if (tn_valid_utf8((const unsigned char *)out + from, on - from, &bad)) break;
+                if (out[from + bad] == '\t') from += bad + 1; else ok = 0;
+            }
+            if (!ok) {
+                fprintf(stderr, "fuzz: run %ld (%s): %s is not clean UTF-8 at byte %zu\n", r, path, which ? "outline" : "LaTeX", from + bad);
+                FILE *f2 = fopen("build/fuzz-failure.md", "wb");
+                if (f2) { fwrite(buf, 1, n, f2); fclose(f2); fprintf(stderr, "input saved to build/fuzz-failure.md\n"); }
+                tn_free(out);
+                return 1;
+            }
+            tn_free(out);
+        }
     }
     printf("fuzz: %ld runs ok\n", runs);
     return 0;

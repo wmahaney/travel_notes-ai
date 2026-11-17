@@ -5,7 +5,9 @@
  *   - it is valid UTF-8 with no control characters other than tab, LF and CR;
  *   - every '<' starts a tag from a fixed list, every attribute is from the list for
  *     that tag and is written name="value";
- *   - href starts with http://, https:// or mailto: and src starts with https://;
+ *   - href starts with http://, https://, mailto: or #tn-h-, and src starts with https://;
+ *   - id is "tn-h-" and a slug; class, id and data-line hold nothing but a-z, 0-9, '-'
+ *     and spaces;
  *   - every '&' starts a character reference;
  *   - tags are properly nested and all closed.
  * Nothing that can run a script passes: no <script>, no event-handler attribute, no
@@ -20,15 +22,16 @@
 typedef struct { const char *tag; const char *attrs; int is_void; } tn_rule;
 
 static const tn_rule TN_RULES[] = {
-    { "p", "", 0 }, { "br", "", 1 }, { "hr", "", 1 },
-    { "h1", "", 0 }, { "h2", "", 0 }, { "h3", "", 0 }, { "h4", "", 0 }, { "h5", "", 0 }, { "h6", "", 0 },
-    { "blockquote", "", 0 }, { "ul", "", 0 }, { "ol", " start ", 0 }, { "li", " class ", 0 },
-    { "pre", "", 0 }, { "code", " class ", 0 },
-    { "em", "", 0 }, { "strong", "", 0 }, { "del", "", 0 },
+    { "p", " data-line ", 0 }, { "br", "", 1 }, { "hr", "", 1 },
+    { "h1", " id data-line ", 0 }, { "h2", " id data-line ", 0 }, { "h3", " id data-line ", 0 },
+    { "h4", " id data-line ", 0 }, { "h5", " id data-line ", 0 }, { "h6", " id data-line ", 0 },
+    { "blockquote", " class ", 0 }, { "ul", "", 0 }, { "ol", " start ", 0 }, { "li", " class data-line ", 0 },
+    { "pre", " data-line ", 0 }, { "code", " class ", 0 },
+    { "em", "", 0 }, { "strong", " class ", 0 }, { "del", "", 0 },
     { "a", " href title rel target ", 0 },
     { "img", " src alt title loading decoding referrerpolicy ", 1 },
     { "span", " class title data-line ", 0 },
-    { "table", "", 0 }, { "thead", "", 0 }, { "tbody", "", 0 }, { "tr", "", 0 },
+    { "table", "", 0 }, { "thead", "", 0 }, { "tbody", "", 0 }, { "tr", " data-line ", 0 },
     { "th", " class ", 0 }, { "td", " class ", 0 },
     { "input", " type disabled checked ", 1 },
 };
@@ -133,8 +136,19 @@ static int tn_check(const char *html, size_t n, char *why, size_t whylen)
             }
             if (w >= n) TN_FAIL("unterminated attribute at byte %zu", a);
             if (!strcmp(name, " href ") && !(tn_ci_prefix(html + v, w - v, "http://") ||
-                tn_ci_prefix(html + v, w - v, "https://") || tn_ci_prefix(html + v, w - v, "mailto:")))
+                tn_ci_prefix(html + v, w - v, "https://") || tn_ci_prefix(html + v, w - v, "mailto:") ||
+                (w - v > 6 && !memcmp(html + v, "#tn-h-", 6))))
                 TN_FAIL("href with a scheme that is not kept, at byte %zu", v);
+            if (!strcmp(name, " id ") && !(w - v > 5 && !memcmp(html + v, "tn-h-", 5)))
+                TN_FAIL("id that is not a heading id, at byte %zu", v);
+            /* The attributes the core builds itself hold no text from the note, except
+             * the language of a code block, which is why <code class> is not checked. */
+            if ((!strcmp(name, " id ") || !strcmp(name, " data-line ") ||
+                 (!strcmp(name, " class ") && strcmp(rule->tag, "code"))) ||
+                (!strcmp(name, " href ") && html[v] == '#'))
+                for (size_t x = v + (html[v] == '#'); x < w; x++)
+                    if (!((html[x] >= 'a' && html[x] <= 'z') || (html[x] >= '0' && html[x] <= '9') || html[x] == '-' || html[x] == ' '))
+                        TN_FAIL("unexpected character in%sat byte %zu", name, x);
             if (!strcmp(name, " src ") && !tn_ci_prefix(html + v, w - v, "https://"))
                 TN_FAIL("src that is not https, at byte %zu", v);
             k = w + 1;

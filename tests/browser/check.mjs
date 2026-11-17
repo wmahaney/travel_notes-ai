@@ -142,6 +142,76 @@ try {
   await mkdir("build", { recursive: true });
   await page.screenshot({ path: "build/browser-light.png" });
 
+  // ---- lines, headings, theorem-like blocks, comments, LaTeX ----
+  const NOTE2 = `# Title of the note
+
+Go to [the end](#the-end).
+
+> **Theorem (Euler).** For all $x$:
+> $$
+> e^{ix} = \\cos x % the real part
+> + i \\sin x
+> $$
+
+> **Proof.** Omitted.
+
+## The end
+
+Last paragraph with ~~struck~~ text.
+`;
+  await setNote(NOTE2);
+  await compile();
+  const two = await page.evaluate(() => ({
+    status: document.querySelector("#status").textContent,
+    svgs: document.querySelectorAll("#preview .tn-math > mjx-container > svg").length,
+    heads: [...document.querySelectorAll("#preview blockquote.tn-env .tn-env-head")].map((e) => e.textContent),
+    theorem: !!document.querySelector("#preview blockquote.tn-env.tn-theorem"),
+    ids: [...document.querySelectorAll("#preview h1, #preview h2")].map((h) => h.id),
+    tex: document.querySelector("#preview .tn-display").getAttribute("data-tex"),
+    lists: document.querySelectorAll("#preview li").length,
+    lines: [...document.querySelectorAll("#preview > p, #preview > h1, #preview > h2")].map((e) => e.dataset.line),
+  }));
+  check(two.status === "Compiled." && two.svgs === 2, "the second note compiles without math errors: " + two.status);
+  check(two.theorem && two.heads.join("|") === "Theorem 1 (Euler).|Proof.", "theorem-like blocks get their heads: " + two.heads.join(" | "));
+  check(two.ids.join(",") === "tn-h-title-of-the-note,tn-h-the-end", "headings have ids: " + two.ids.join(", "));
+  check(!two.tex.includes("real part") && two.tex.includes("+ i \\sin x") && two.lists === 0, "a TeX comment is dropped and a line starting with + stays in the formula: " + two.tex.replace(/\s+/g, " "));
+  check(two.lines.join(",") === "1,3,13,15", "blocks carry their source lines: " + two.lines.join(","));
+
+  const selected = () => page.$eval("#source", (t) => t.value.slice(t.selectionStart, t.selectionEnd));
+  await page.click("#btn-outline");
+  const outline = await page.$$eval("#outline-list button", (bs) => bs.map((b) => b.textContent));
+  check(outline.join("|") === "Title of the note|The end", "the outline lists the headings: " + outline.join(" | "));
+  await page.click("#outline-list li:nth-child(2) button");
+  check((await selected()) === "## The end", "an outline entry selects its heading in the source: " + (await selected()));
+  await page.click("#btn-outline-close");
+
+  await page.click("#preview a[href='#tn-h-the-end']");
+  check(await page.evaluate(() => document.querySelector("#tn-h-the-end").classList.contains("tn-located") && location.hash === ""),
+    "a link to a heading goes to it and leaves the address alone");
+
+  await page.$eval("#preview > p:last-of-type", (p) => p.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, cancelable: true })));
+  check((await selected()) === "Last paragraph with ~~struck~~ text.", "double-clicking a paragraph selects its line in the source: " + (await selected()));
+
+  await page.$eval("#source", (t) => { const at = t.value.indexOf("e^{ix}"); t.setSelectionRange(at, at); });
+  await page.click("#btn-locate");
+  check(await page.evaluate(() => { const el = document.querySelector("#preview .tn-located"); return !!el && el.classList.contains("tn-display"); }),
+    "Locate marks the block that the cursor's line belongs to");
+
+  const texFile = await page.evaluate(async () => {
+    const realClick = HTMLAnchorElement.prototype.click; let name = null, blob = null;
+    const real = URL.createObjectURL;
+    URL.createObjectURL = (b) => { blob = b; return real.call(URL, b); };
+    HTMLAnchorElement.prototype.click = function () { name = this.download; };
+    document.querySelector("#btn-tex").click();
+    for (let i = 0; i < 400 && !blob; i++) await new Promise((r) => setTimeout(r, 25));
+    HTMLAnchorElement.prototype.click = realClick; URL.createObjectURL = real;
+    return { name, text: blob ? await blob.text() : "" };
+  });
+  check(texFile.name === "Title-of-the-note.tex", "the .tex is named after the first heading: " + texFile.name);
+  check(["\\documentclass{amsart}", "\\title{Title of the note}", "\\begin{theorem}[{Euler}]", "\\begin{proof}", "\\hyperref[tn-h-the-end]{the end}",
+    "\\section{The end}\\label{tn-h-the-end}", "\\usepackage[normalem]{ulem}", "\\sout{struck}", "e^{ix} = \\cos x + i \\sin x"].every((t) => texFile.text.includes(t)) &&
+    !texFile.text.includes("real part"), "the .tex download is the note as LaTeX");
+
   // ---- out of date, then a deliberate error ----
   await setNote(NOTE + "\nline with an error: $\\undefinedmacro + 1$\n");
   check((await page.$eval("#status", (s) => s.textContent)).includes("out of date"), "status says the preview is out of date after typing");

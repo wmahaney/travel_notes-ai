@@ -1,0 +1,76 @@
+% Written by travel_notes 0.2.0 from a Markdown note.
+\documentclass{amsart}
+\usepackage[T1]{fontenc}
+\usepackage{amssymb}
+\usepackage[normalem]{ulem}
+\usepackage{hyperref}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{conjecture}[theorem]{Conjecture}
+\newtheorem{claim}[theorem]{Claim}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{example}[theorem]{Example}
+\newtheorem{exercise}[theorem]{Exercise}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+\begin{document}
+
+\title{A sample note}
+\maketitle
+
+This is \emph{invented} text for testing, with \textbf{bold}, \sout{struck} and \texttt{code}.
+A second line of the same paragraph.\\
+A hard break came before this line.
+
+\section{Lists}\label{tn-h-lists}
+
+\begin{enumerate}
+\item First
+\item Second\begin{itemize}
+\item nested bullet
+\item another
+\end{itemize}
+
+
+\item Third
+\end{enumerate}
+
+\begin{itemize}
+\item[$\boxtimes$] a finished task
+\item[$\square$] an open task
+\end{itemize}
+
+\begin{quote}
+A block quote
+over two lines.
+
+\end{quote}
+
+\par\noindent\rule{\linewidth}{0.4pt}\par
+
+\begin{center}
+\begin{tabular}{lcr}
+\hline
+Left & Centre & Right \\
+\hline
+a & b & c \\
+1 & 2 & 3 \\
+\hline
+\end{tabular}
+\end{center}
+
+\begin{verbatim}
+def f(x):
+    return x < 2 and x > 0
+\end{verbatim}
+
+A \href{https://example.org/page?a=1\&b=2}{link} and \href{https://example.org}{https://example.org}.
+
+Characters: \& \textless{} \textgreater{} \textquotedbl{} ' \&copy; \& ∀
+
+\end{document}

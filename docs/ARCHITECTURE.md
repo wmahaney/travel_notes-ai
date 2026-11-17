@@ -1,7 +1,7 @@
 # travel_notes architecture
 
-travel_notes (version 0.1.0) turns Markdown with LaTeX math into a typeset note, in the
-browser, from static files. This document says how it is put together, what each part
+travel_notes (version 0.2.0) turns Markdown with LaTeX math into a typeset note, in the
+browser, from static files. The same core also writes the note as a LaTeX document. This document says how it is put together, what each part
 guarantees, and which choices were made where the brief left them open.
 
 It is also the pattern for the owner's other small web tools: a C core with no user
@@ -19,19 +19,23 @@ These come from where the tool is hosted (GitHub Pages) and are not up for trade
 3. **Light on the visitor's machine.** No work while idle. The core and MathJax are
    loaded on the first Compile, not on page load.
 4. **Public repository.** No secrets. Test fixtures are invented text.
-5. **Small.** The deployed site is 2.4 MB; the limit is 10 MB.
+5. **Small.** The deployed site is 2.5 MB; the limit is 10 MB.
 6. **Single-threaded WebAssembly.** Pages cannot send the headers that threads need.
 
 ## 2. Layering
 
 ```
-   cli/main.c  (tnotes: file in, HTML fragment out)        web/app.js  (the page)
+   cli/main.c  (tnotes: file in; HTML, LaTeX or outline out)   web/app.js  (the page)
                  \                                          /        \
                   v                                        v          v
               include/tnotes.h   -- the only header a front end uses   MathJax
           +----------------------------------------------------+   (typesets the
-          | tn_render   md4c callbacks -> HTML                  |    math spans)
-          | tn_buf      growable buffer, escaping, address rules|
+          | tn_render   md4c callbacks -> HTML, and the outline |    math spans)
+          | tn_latex    md4c callbacks -> LaTeX                 |
+          | tn_buf      growable buffer, escaping, address      |
+          |             rules, and what both renderers share:   |
+          |             math cleaning, heading slugs, theorem   |
+          |             heads, protecting formulas              |
           +----------------------------------------------------+
           third_party/md4c   (the Markdown parser, unmodified)
 ```
@@ -45,9 +49,11 @@ Rules:
 
 ## 3. The core
 
-`int tn_render(const char *md, size_t len, char **html, size_t *html_len)` is the whole
-API, apart from `tn_free`, `tn_version`, `tn_strerror` and the one-value wrapper
-`tn_render_cstr` that the web build calls.
+The API is three functions of one shape,
+`int tn_render(const char *md, size_t len, char **out, size_t *out_len)` for HTML,
+`tn_latex` for LaTeX and `tn_outline` for the list of headings; then `tn_free`,
+`tn_version`, `tn_strerror`, and the one-value wrappers `tn_render_cstr` and
+`tn_latex_cstr` that the web build calls.
 
 md4c parses; `src/tn_render.c` writes the HTML from md4c's callbacks. md4c's own HTML
 renderer (`md4c-html.c`) is not used, because the rules below differ from plain
@@ -55,12 +61,22 @@ Markdown-to-HTML.
 
 md4c flags: math spans on, raw HTML off, tables, strikethrough and task lists on.
 
+md4c reports a block before its text, and two things the HTML needs are known only
+later: a block's source line (from its first text) and a heading's id (from all its
+text). So `tn_render.c` remembers the offset of a tag it has written and inserts the
+attribute when it is known. One function, `out_insert`, does every insertion and moves
+the remembered offsets that lie after it.
+
 ### What the output guarantees
 
 Whatever the input bytes are:
 
 - **Tags come from a fixed list**, each with a fixed list of attributes, always written
   `name="value"`. There is no `style` attribute, no event handler, no `<script>`.
+- **`id`, `data-line` and `class` hold no text from the note.** An id is `tn-h-` and a
+  slug of a to z, 0 to 9 and hyphens; a line is a number; classes are the core's own
+  words. The one exception is the language of a code block (`class="language-..."`),
+  which is escaped.
 - **Nothing from the input is written unescaped.** `& < > " '` become character
   references. A character reference written in the note (`&copy;`, `&#60;`) is passed
   through as written, after its syntax is checked.
@@ -71,6 +87,8 @@ Whatever the input bytes are:
   inside `<span class="tn-blocked-link">`. A kept link gets
   `rel="noopener noreferrer" target="_blank"`, so following it never discards the note.
   Relative links are dropped too: in a one-page editor they lead nowhere useful.
+  The one address kept besides those is `#name`: it becomes `href="#tn-h-` and the slug
+  of the name, which is the id of the heading with that text.
 - **Images** keep an address only if it starts with `https://`. A kept image is
   `<img src alt [title] loading="lazy" decoding="async" referrerpolicy="no-referrer">`,
   with the description as `alt`. Anything else becomes
@@ -92,19 +110,110 @@ run every output through it.
 A math span is emitted as
 
 ```html
-<span class="tn-math tn-inline"  data-line="12">\( TeX \)</span>
-<span class="tn-math tn-display" data-line="14">\[ TeX \]</span>
+<span class="tn-math tn-inline"  data-line="12">\(TeX\)</span>
+<span class="tn-math tn-display" data-line="14">\[TeX\]</span>
 ```
 
-- The TeX is the bytes between the dollar signs, escaped for HTML and otherwise
-  untouched: md4c applies no Markdown rule inside a math span. md4c turns a line break
-  inside the span into one space.
+- The TeX is the bytes between the dollar signs, escaped for HTML: md4c applies no
+  Markdown rule inside a math span. Two things are changed (`tn_math_clean`). A TeX
+  comment is removed: an unescaped `%`, the rest of its line, the line break and the
+  white space that starts the next line, which is how TeX reads it. And white space at
+  the two ends goes, except a final space that a backslash makes a control space.
+- Line breaks inside the formula are kept. md4c hands a line break in a math span over
+  as a single space that does not point into the source; that is how the renderer tells
+  it from a space the author typed, and it is what lets a comment end where its line
+  ends.
 - `data-line` is the 1-based line of the source on which the expression starts. md4c
   hands the callbacks pointers into the source buffer, so the line is found by counting
   newlines up to the pointer (stepping back over the white space after an opening `$$`).
   It is present whenever md4c gives such a pointer, which in practice is always.
 - A display formula is a `<span>` with `display: block`, not a `<div>`: md4c reports it
   as a span inside a paragraph, and a `<div>` inside `<p>` is not valid HTML.
+
+### Formulas of several lines
+
+Markdown decides what a line is before it looks for math. Inside
+
+```
+$$
+a = b
++ c
+$$
+```
+
+the line `+ c` would start a list and cut the formula in two; `- c`, `# c`, `===` and
+`1. c` do the same in their ways. `tn_protect_math` runs before the parser. It finds
+formulas written like this (a line that is just `$$`, lines, a line that is just `$$`,
+no blank line between, not in a fenced code block) and, in a copy of the source,
+indents by four spaces each line in between that could start a block. Markdown reads an
+indented line after a paragraph line as more of the paragraph, and drops the
+indentation. No line break is added or removed, so line numbers are the same in the
+copy. It is deliberately narrow: an opening `$$` indented by four spaces or more is left
+alone, because that may be code, and a blank line inside a formula still ends it.
+
+### Source lines
+
+Paragraphs, headings, list items, code blocks and table rows carry `data-line`, the line
+on which their first text stands (for a fenced code block, the line of the fence). A
+block with no text has none. The line is that of the innermost block's own text, so in
+`<li><p>` both carry it. At most sixteen blocks wait for a line at once; nested deeper,
+the outermost go without.
+
+### Headings and the outline
+
+A heading's id is `tn-h-` and a slug of its text (`tn_slug`): ASCII letters, lowered, and
+digits, with one hyphen for each run of anything else, at most 64 bytes. Math counts as
+its TeX. An empty slug is `section`. A slug that is taken gets `-2`, `-3`, and so on; the
+set of used slugs is a hash table that keeps a counter per slug, so a note of twenty
+thousand equal headings is not slow. The prefix keeps a heading called "Status" from
+taking the id of an element of the page.
+
+`tn_outline` returns one line per heading: level, source line, id, and the text as
+written. It is the same pass as the HTML, returning a different buffer. The LaTeX
+writer makes the same slugs in the same order, so `\label` and `id` agree.
+
+### Theorem-like blocks
+
+A block quote becomes a theorem-like block when its first paragraph starts with a bold
+run that is exactly a kind's name, an optional `(name)`, and an optional final `.` or
+`:` (`tn_env_head`). The renderer follows three states: quote opened, its first paragraph
+opened, reading the bold run that opens it. Anything else in between cancels. On a
+match the bold run is rewritten as `<strong class="tn-env-head">Theorem 3 (name).</strong>`
+and the block quote gets `class="tn-env tn-theorem"`. All kinds but Proof share one
+counter. The bold run must be plain text: a head with emphasis or math inside it, or
+with a number written by hand, is left as an ordinary quotation.
+
+### LaTeX
+
+`src/tn_latex.c` is a second set of callbacks on the same parser, writing an `amsart`
+document.
+
+- **Prose is escaped** character by character (`put_text`), so no text of a note becomes
+  a TeX command. Addresses are percent-encoded down to a small set and then written for
+  `\href`. Invalid UTF-8 becomes `?` and control characters are dropped.
+- **Math is the author's TeX**, copied after `tn_math_clean`. It is not checked: a note
+  can say in math whatever TeX can do, as any `.tex` file can. Someone who compiles a
+  note they did not write is compiling TeX they did not write.
+- **Definitions are moved out of formulas.** `\newcommand` and `\renewcommand` at the
+  start of a formula are written in front of it. MathJax keeps a definition after the
+  formula ends and LaTeX does not; moving it makes the two agree.
+- **A display formula that is itself an environment** (`align`, `gather`, `equation`,
+  `multline`, `flalign`, `alignat`, `eqnarray`, starred or not) is written without
+  `\[ \]`. Display math is written with no blank line around it, because a blank line
+  is a paragraph break in LaTeX.
+- **Title and levels.** A level-1 heading that is the first block is the `\title`. If it
+  is the only level-1 heading, the rest move up a level. A first, small pass over the
+  note finds this out, and whether `ulem` is needed for strikethrough.
+- **Nesting.** LaTeX allows four levels of a list. Deeper lists and quotations are
+  flattened: items become paragraphs that start with a dash.
+- **Brackets.** A `[` right after `\item` or `\\` would be read as an optional argument;
+  it is written `{[}` there.
+- **Code** is `verbatim`, unless it contains `\end{verbatim}`; then it is typeset line by
+  line in the typewriter font, escaped.
+- **Images** cannot be fetched by TeX. An image is `[Image: description]`, linked to its
+  address if the preview would load it.
+
+`make latex-test` compiles the LaTeX of three golden notes with pdflatex.
 
 ### Limits
 
@@ -127,9 +236,10 @@ app.js       everything else
 
 | When | What |
 |---|---|
-| Page load | `index.html`, `style.css`, `theme.js`, `app.js`: 29 KB in all. The draft is restored. |
-| First Compile | `tnotes.js` and `tnotes.wasm` (104 KB) and MathJax (2.3 MB) are fetched. |
-| Every Compile | core → HTML → preview → MathJax → error list. Images load now. |
+| Page load | `index.html`, `style.css`, `theme.js`, `app.js`: 37 KB in all. The draft is restored. |
+| First Compile | `tnotes.js` and `tnotes.wasm` (126 KB) and MathJax (2.3 MB) are fetched. |
+| Every Compile | core → HTML → preview → MathJax → error list and outline. Images load now. |
+| Download .tex | core → LaTeX. The core is loaded if it is not yet; MathJax is not needed. |
 | Typing | One debounced timer (800 ms) that saves the draft. Nothing is typeset. |
 | Idle | Nothing: no timer, no polling, no animation frame. The browser check measures this. |
 
@@ -166,9 +276,23 @@ marked in the preview. The status bar shows the count; the panel lists the error
 with a button that selects its line in the source; **Download .log** saves the list as
 plain text.
 
+### Outline, Locate, links to headings
+
+These three use only what the core wrote into the HTML.
+
+- **Outline** reads the headings with an id from the preview after each compile. An
+  entry shows the heading and selects its line in the source.
+- **Locate** (`Ctrl+J`) finds the last block whose `data-line` is at or before the
+  cursor's line and shows it, outlined. The outline stays until the next Locate or
+  Compile: removing it after a moment would need a timer.
+- **Double-clicking** a block in the preview selects its line in the source.
+- **A link to a heading** scrolls the preview to it. The click is handled by the page,
+  so the address bar and the history do not change.
+
 ### Files, images, PDF
 
-- **Open** reads a file with the File API. **Download .md** hands the browser a Blob.
+- **Open** reads a file with the File API. **Download .md** hands the browser a Blob, and
+  so does **Download .tex**, with the core's LaTeX in it.
   The file name is the first ATX heading, reduced to letters and digits joined by
   hyphens, or `note`.
 - **Images** are in the HTML only after Compile, so nothing is fetched while typing. An
@@ -263,24 +387,25 @@ remembered. MathJax's SVG uses `currentColor`, so math follows the text colour.
 
 | Test | What it covers |
 |---|---|
-| `tests/test_core.c` | Exact output for Markdown, math next to Markdown syntax (underscores, asterisks, backslashes, dollar signs in prose, lists, quotes, tables, code), line numbers, link and image rules, raw HTML, invalid UTF-8, NUL, the API, 400 KB lines, 2000-deep quotes |
-| `tests/hostile/` | Files of raw HTML, script addresses in every spelling, attribute breakouts, hostile math, long lines, invalid bytes. Each must render without a crash, and its output must pass the checker |
-| `tests/golden/` | Three notes with their exact expected HTML |
-| `tests/fuzz.c` | Mutates the golden and hostile files (byte flips, deletions, copies, spliced tokens) and checks every output, under the sanitizers. `make fuzz-smoke` runs 20000; 300000 were run before release |
+| `tests/test_core.c` | 959 checks. Exact HTML for Markdown, math next to Markdown syntax, comments, formulas of several lines, source lines, heading ids and links, the outline, theorem-like blocks, link and image rules, raw HTML, invalid UTF-8, NUL, the API, 400 KB lines, 2000-deep quotes. Exact LaTeX for the same ground: escaping, titles and levels, math, definitions, links, lists, nesting, tables, code |
+| `tests/hostile/` | Files of raw HTML, script addresses in every spelling, attribute breakouts, hostile math, long lines, invalid bytes. Each must render without a crash, its HTML must pass the checker, and its LaTeX and outline must be clean UTF-8 |
+| `tests/golden/` | Four notes with their exact expected HTML, LaTeX and outline |
+| `tests/fuzz.c` | Mutates the golden and hostile files (byte flips, deletions, copies, spliced tokens) and checks the HTML of every one, and that the LaTeX and the outline are clean UTF-8, under the sanitizers. `make fuzz-smoke` runs 20000; 300000 were run before release |
+| `make latex-test` | pdflatex compiles the LaTeX of the golden notes `math`, `images` and `theorems`, twice each. `basics` is compared but not compiled: its prose has characters pdfLaTeX does not know |
 | `make asan` | The whole suite with the core and md4c under AddressSanitizer and UBSan |
-| `tests/browser/check.mjs` | The built site in headless Chrome: first load under 300 KB, compile, numbering, the error log with its line, macro reset, file name, idle (no timers), theme, print, draft recovery, a failing store, no request to another origin except the note's image, no policy violation |
+| `tests/browser/check.mjs` | The built site in headless Chrome: first load under 300 KB, compile, numbering, theorem-like blocks, heading ids, comments, source lines, the outline, a link to a heading, double-click, Locate, the `.tex` download, the error log with its line, macro reset, file name, idle (no timers), theme, print, draft recovery, a failing store, no request to another origin except the note's image, no policy violation |
 
 ## 8. Build and deploy
 
-One Makefile: `make`, `make test`, `make asan`, `make fuzz-smoke`, `make web`,
-`make serve`, `make browser-test`. `make web` writes the site to `build/web/`.
+One Makefile: `make`, `make test`, `make asan`, `make fuzz-smoke`, `make latex-test`,
+`make web`, `make serve`, `make browser-test`. `make web` writes the site to `build/web/`.
 
 The WebAssembly build is one `emcc` command over the core and md4c: `MODULARIZE`,
-`ENVIRONMENT=web`, `FILESYSTEM=0`, `DYNAMIC_EXECUTION=0`, `ALLOW_MEMORY_GROWTH`, and four
+`ENVIRONMENT=web`, `FILESYSTEM=0`, `DYNAMIC_EXECUTION=0`, `ALLOW_MEMORY_GROWTH`, and five
 exported functions.
 
-`.github/workflows/pages.yml` runs the tests, builds, checks the size, runs the browser
-check, and on `main` deploys. Every action is pinned to a commit. The workflow has
+`.github/workflows/pages.yml` runs the tests, installs TeX Live and compiles the LaTeX,
+builds, checks the size, runs the browser check, and on `main` deploys. Every action is pinned to a commit. The workflow has
 `contents: read`; only the deploy job has `pages: write` and `id-token: write`.
 
 **Emscripten is pinned to 3.1.6.** That is the version this release was built and tested
@@ -307,6 +432,19 @@ Where the brief left a choice open, the simpler option was taken.
 | Favicon | An empty `data:` icon | Otherwise the browser asks the server for `/favicon.ico` |
 | `theme.js` | A separate small file | The policy allows no inline script, and the theme must apply before the first paint |
 | PDF | The browser's print dialog | No TeX engine, no PDF library |
+| Math delimiters | Dollar signs only | The owner's choice. `\( \)` and a bare `\begin{align}` are not read as math |
+| TeX comments | `%` to the end of the line, the line break, and the next line's leading white space | What TeX does. A comment on a line of its own leaves nothing behind |
+| Line breaks in math | Kept | Comments need them, and the LaTeX output reads better |
+| Formulas of several lines | Protected only between two `$$` lines | The one form that can be found without parsing Markdown twice; see "Formulas of several lines" |
+| Which blocks carry a line | Paragraphs, headings, list items, code blocks, table rows | The innermost block under the pointer is what a double-click finds |
+| Heading ids | `tn-h-` and an ASCII slug | Stable when the note is edited elsewhere; safe as an attribute and as an address; cannot take an id of the page |
+| Outline in the page | Read from the preview's headings | The HTML already carries ids and lines; `tn_outline` serves the command line and other front ends |
+| Theorem syntax | A block quote that opens with a bold kind | It is ordinary Markdown: the note reads the same anywhere else |
+| Theorem numbers | One counter for all kinds but Proof | The simplest scheme that is common in papers; it is also what the LaTeX output declares |
+| LaTeX class | `amsart` | The owner's default for anything that is not a talk |
+| Definitions in math | Moved in front of their formula in LaTeX | A definition inside a formula is local in LaTeX and lasting in MathJax |
+| `ulem` | Loaded only if the note strikes text through | One package fewer for most notes |
+| Locate's mark | Stays until the next Locate or Compile | Fading it would need a timer, and the page has none while idle |
 
 ## 10. Not implemented
 
@@ -319,3 +457,11 @@ These are absent by design in 0.1; each explains a choice above.
 - **A real TeX engine**, and LaTeX packages beyond MathJax's.
 - **Accounts, sync, share links.** There is no backend.
 - **Mobile polish.** Narrow screens get one pane above the other and nothing more.
+- **`\( \)` and `\[ \]` as delimiters.** Dollar signs are the one way to write math.
+- **Footnotes.** md4c has no footnote syntax.
+- **References to theorem numbers**, and numbers written into a head by hand. A head with
+  a number is left as the author wrote it.
+- **Letters outside a to z in heading ids.** A heading written in another script gets
+  `section`, `section-2`, and so on.
+- **Protecting a formula that does not stand between two `$$` lines**, or that contains a
+  blank line. Markdown still cuts those.

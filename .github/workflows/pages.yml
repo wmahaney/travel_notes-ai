@@ -36,6 +36,17 @@ jobs:
       - name: Fuzz smoke test
         run: make fuzz-smoke
 
+      # The LaTeX the core writes is compiled, to prove that it is LaTeX. TeX Live comes
+      # from the runner's package archive.
+      - name: Install TeX Live
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends \
+            texlive-latex-base texlive-latex-recommended texlive-fonts-recommended texlive-plain-generic
+
+      - name: The LaTeX output compiles
+        run: make latex-test
+
       - name: Install Emscripten
         uses: mymindstorm/setup-emsdk@4528d102f7230f0e7b276855c01ea1159be0e984  # v16
         with:
@@ -46,12 +57,14 @@ jobs:
 
       - name: The site stays under 10 MB
         run: |
+          ls -l build/web
           size=$(du -sb build/web | cut -f1)
           echo "site size: $size bytes"
           test "$size" -lt 10000000
 
-      # Loads the built site in the runner's Chrome: compiles a note, checks the error
-      # log, the draft, the theme, printing, and that nothing is fetched from elsewhere.
+      # Loads the built site in the runner's Chrome: compiles notes, checks the outline,
+      # Locate, the .tex download, the error log, the draft, the theme, printing, and that
+      # nothing is fetched from elsewhere.
       # puppeteer-core is a test tool only; the site uses nothing from npm.
       # setup-emsdk puts Emscripten's own Node (14) first on PATH; the check needs the
       # runner's Node (18 or later), so the emsdk directories are dropped for this step.

@@ -21,10 +21,13 @@
   <span class="brand">travel_notes</span>
   <button type="button" id="btn-compile" class="primary" title="Typeset the note (Ctrl+Enter)">Compile</button>
   <button type="button" id="btn-toggle" aria-pressed="true" title="Show or hide the preview (Ctrl+\)">Preview</button>
+  <button type="button" id="btn-outline" aria-pressed="false" title="List the headings of the compiled note">Outline</button>
+  <button type="button" id="btn-locate" title="Show the line under the cursor in the preview (Ctrl+J). Double-click the preview to go the other way.">Locate</button>
   <span class="sep" aria-hidden="true"></span>
   <button type="button" id="btn-new" title="Start an empty note">New note</button>
   <button type="button" id="btn-open" title="Open a .md file from this computer">Open</button>
   <button type="button" id="btn-save" title="Download the source as a .md file">Download .md</button>
+  <button type="button" id="btn-tex" title="Download the note as a LaTeX document (amsart)">Download .tex</button>
   <button type="button" id="btn-pdf" title="Opens the print dialog. Choose “Save as PDF” there.">Download PDF</button>
   <span class="grow"></span>
   <button type="button" id="btn-theme" title="Switch between light and dark">Dark</button>
@@ -42,6 +45,15 @@
     <article id="preview" class="tn-doc"></article>
   </section>
 </main>
+
+<section id="outline" class="errors outline" aria-label="Outline" hidden>
+  <div class="errors-head">
+    <strong>Outline</strong>
+    <span class="grow"></span>
+    <button type="button" id="btn-outline-close" aria-label="Close the outline">Close</button>
+  </div>
+  <ol id="outline-list"></ol>
+</section>
 
 <section id="errors" class="errors" aria-label="Math errors" hidden>
   <div class="errors-head">
