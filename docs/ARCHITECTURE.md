@@ -19,7 +19,7 @@ These come from where the tool is hosted (GitHub Pages) and are not up for trade
 3. **Light on the visitor's machine.** No work while idle. The core and MathJax are
    loaded on the first Compile, not on page load.
 4. **Public repository.** No secrets. Test fixtures are invented text.
-5. **Small.** The deployed site is 2.4 MB; the limit is 10 MB.
+5. **Small.** The deployed site is 2.5 MB; the limit is 10 MB.
 6. **Single-threaded WebAssembly.** Pages cannot send the headers that threads need.
 
 ## 2. Layering
@@ -237,7 +237,7 @@ app.js       everything else
 | When | What |
 |---|---|
 | Page load | `index.html`, `style.css`, `theme.js`, `app.js`: 37 KB in all. The draft is restored. |
-| First Compile | `tnotes.js` and `tnotes.wasm` (104 KB) and MathJax (2.3 MB) are fetched. |
+| First Compile | `tnotes.js` and `tnotes.wasm` (126 KB) and MathJax (2.3 MB) are fetched. |
 | Every Compile | core → HTML → preview → MathJax → error list and outline. Images load now. |
 | Download .tex | core → LaTeX. The core is loaded if it is not yet; MathJax is not needed. |
 | Typing | One debounced timer (800 ms) that saves the draft. Nothing is typeset. |
