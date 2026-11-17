@@ -53,8 +53,12 @@ jobs:
       # Loads the built site in the runner's Chrome: compiles a note, checks the error
       # log, the draft, the theme, printing, and that nothing is fetched from elsewhere.
       # puppeteer-core is a test tool only; the site uses nothing from npm.
+      # setup-emsdk puts Emscripten's own Node (14) first on PATH; the check needs the
+      # runner's Node (18 or later), so the emsdk directories are dropped for this step.
       - name: Browser check
         run: |
+          PATH="$(printf '%s' "$PATH" | tr ':' '\n' | grep -v "^$EMSDK" | paste -sd: -)"
+          echo "node $(node --version) at $(command -v node)"
           npm install --no-save --no-audit --no-fund puppeteer-core@23
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)" \
             node tests/browser/check.mjs build/web
