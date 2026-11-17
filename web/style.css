@@ -152,6 +152,18 @@ body.no-preview .divider, body.no-preview .preview { display: none; }
 .tn-doc a { color: var(--accent); }
 .tn-doc hr { border: 0; border-top: 1px solid var(--border); margin: 1.6em 0; }
 .tn-doc blockquote { margin: 1em 0; padding: 0 1em; border-left: 3px solid var(--border); color: var(--muted); }
+/* A theorem-like block: a block quote that opens with a bold "Theorem." and the like. */
+.tn-doc blockquote.tn-env { border-left-color: var(--accent); color: inherit; }
+.tn-doc blockquote.tn-env > :first-child { margin-top: 0.4em; }
+.tn-doc blockquote.tn-env > :last-child { margin-bottom: 0.4em; }
+.tn-doc blockquote.tn-theorem, .tn-doc blockquote.tn-lemma, .tn-doc blockquote.tn-proposition,
+.tn-doc blockquote.tn-corollary, .tn-doc blockquote.tn-conjecture, .tn-doc blockquote.tn-claim { font-style: italic; }
+.tn-doc blockquote.tn-env .tn-env-head, .tn-doc blockquote.tn-env .tn-math { font-style: normal; }
+.tn-doc blockquote.tn-proof, .tn-doc blockquote.tn-remark { border-left-color: var(--border); }
+.tn-doc blockquote.tn-proof .tn-env-head, .tn-doc blockquote.tn-remark .tn-env-head { font-style: italic; font-weight: normal; }
+.tn-doc blockquote.tn-proof > :last-child::after { content: "\25A1"; float: right; font-style: normal; }
+/* The block that Locate found. It stays marked until the next Locate or Compile. */
+.tn-located { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
 .tn-doc code { font: 0.88em var(--mono); background: var(--tint); border-radius: 4px; padding: 0.1em 0.3em; }
 .tn-doc pre { background: var(--tint); border-radius: var(--radius); padding: 0.8em 1em; overflow: auto; }
 .tn-doc pre code { background: none; padding: 0; }
@@ -203,6 +215,13 @@ body.no-preview .divider, body.no-preview .preview { display: none; }
 .errors li { padding: 4px 0; border-bottom: 1px solid var(--border); }
 .errors li:last-child { border-bottom: 0; }
 .errors li button { padding: 1px 6px; margin-right: 8px; font-size: 12px; }
+.outline li { border-bottom: 0; padding: 1px 0; }
+.outline li button { border-color: transparent; background: none; text-align: left; margin: 0; font-size: 13px; }
+.outline li button:hover { border-color: var(--accent); }
+.outline li[data-level="2"] { padding-left: 1.2em; }
+.outline li[data-level="3"] { padding-left: 2.4em; }
+.outline li[data-level="4"], .outline li[data-level="5"], .outline li[data-level="6"] { padding-left: 3.6em; }
+.outline li.empty { color: var(--muted); padding: 4px 6px; }
 .errors li code { font: 12px var(--mono); color: var(--muted); display: block; margin: 2px 0 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 /* ---- narrow screens: one pane above the other ---- */
@@ -233,4 +252,5 @@ body.no-preview .divider, body.no-preview .preview { display: none; }
   .tn-display { overflow: visible; }
   .tn-doc pre { white-space: pre-wrap; }
   .tn-doc a { color: inherit; text-decoration: underline; }
+  .tn-located { outline: 0; }
 }

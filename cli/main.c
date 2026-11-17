@@ -3,9 +3,11 @@
  *
  *     tnotes in.md -o out.html      render a file
  *     tnotes < in.md > out.html     or use standard input and output
+ *     tnotes --latex in.md -o out.tex      the note as a LaTeX document
+ *     tnotes --outline in.md               its headings, one per line
  *     tnotes --version
  *
- * The output is an HTML fragment, not a whole page.
+ * The HTML is a fragment, not a whole page. The LaTeX is a whole document.
  */
 #include "tnotes.h"
 
@@ -36,19 +38,24 @@ static char *read_all(FILE *f, size_t *len)
 
 static int usage(FILE *to)
 {
-    fputs("usage: tnotes [INPUT.md] [-o OUTPUT.html]\n"
+    fputs("usage: tnotes [--latex | --outline] [INPUT.md] [-o OUTPUT]\n"
           "       tnotes --version\n"
           "Renders Markdown with LaTeX math to an HTML fragment. With no INPUT (or \"-\")\n"
-          "it reads standard input; with no -o it writes standard output.\n", to);
+          "it reads standard input; with no -o it writes standard output.\n"
+          "  --latex    write a LaTeX document (amsart) instead\n"
+          "  --outline  write the headings instead: level, line, id and text, tab-separated\n", to);
     return to == stderr ? 2 : 0;
 }
 
 int main(int argc, char **argv)
 {
     const char *in = NULL, *out = NULL;
+    int (*run)(const char *, size_t, char **, size_t *) = tn_render;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--version")) { printf("tnotes %s\n", tn_version()); return 0; }
         if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) return usage(stdout);
+        if (!strcmp(argv[i], "--latex")) { run = tn_latex; continue; }
+        if (!strcmp(argv[i], "--outline")) { run = tn_outline; continue; }
         if (!strcmp(argv[i], "-o")) {
             if (++i == argc) return usage(stderr);
             out = argv[i];
@@ -74,7 +81,7 @@ int main(int argc, char **argv)
 
     char *html = NULL;
     size_t html_len = 0;
-    int rc = tn_render(md, len, &html, &html_len);
+    int rc = run(md, len, &html, &html_len);
     free(md);
     if (rc != TN_OK) { fprintf(stderr, "tnotes: %s\n", tn_strerror(rc)); return 1; }
 

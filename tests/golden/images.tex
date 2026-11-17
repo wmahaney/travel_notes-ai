@@ -1,0 +1,37 @@
+% Written by travel_notes 0.2.0 from a Markdown note.
+\documentclass{amsart}
+\usepackage[T1]{fontenc}
+\usepackage{amssymb}
+\usepackage{hyperref}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{conjecture}[theorem]{Conjecture}
+\newtheorem{claim}[theorem]{Claim}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{example}[theorem]{Example}
+\newtheorem{exercise}[theorem]{Exercise}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+\begin{document}
+
+\title{Images}
+\maketitle
+
+An https image: \href{https://example.org/circle.png}{{[}Image: A circle]}
+
+An http image is not loaded: {[}Image: A square]
+
+A local file is not loaded: {[}Image: A triangle]
+
+A data address is not loaded: {[}Image: A dot]
+
+An image inside a link: \href{https://example.org}{\href{https://example.org/logo.png}{{[}Image: A logo]}}
+
+A link whose address is not kept: click and \hyperref[tn-h-section]{here}.
+
+\end{document}

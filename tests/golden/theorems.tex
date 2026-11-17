@@ -1,0 +1,118 @@
+% Written by travel_notes 0.2.0 from a Markdown note.
+\documentclass{amsart}
+\usepackage[T1]{fontenc}
+\usepackage{amssymb}
+\usepackage[normalem]{ulem}
+\usepackage{hyperref}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{conjecture}[theorem]{Conjecture}
+\newtheorem{claim}[theorem]{Claim}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{example}[theorem]{Example}
+\newtheorem{exercise}[theorem]{Exercise}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+\begin{document}
+
+\title{Notes on isogeny graphs}
+\maketitle
+
+These notes show headings with ids, links to them, theorem-like blocks and comments in
+math. See \hyperref[tn-h-a-proof]{the proof} and \hyperref[tn-h-remarks-questions]{the last section}.
+
+\section{Definitions}\label{tn-h-definitions}
+
+\begin{definition}
+Let \(\ell \ne p\) be primes. The graph \(G_p(\ell)\) has the supersingular
+\(j\)-invariants over \(\overline{\mathbb{F}}_p\) as vertices and \(\ell\)-isogenies as edges.
+
+\end{definition}
+
+\begin{theorem}[{Pizer}]
+The graph \(G_p(\ell)\) is Ramanujan:
+\[
+|\lambda| \le 2\sqrt{\ell}
+\]
+for every eigenvalue \(\lambda \ne \ell + 1\).
+
+\end{theorem}
+
+\begin{lemma}
+A walk of length \(O(\log p)\) mixes.
+
+\end{lemma}
+
+\section{A proof}\label{tn-h-a-proof}
+
+\begin{proof}[{Proof (of the lemma)}]
+Expand in an eigenbasis.
+
+\begin{itemize}
+\item The trivial eigenvalue gives the uniform distribution.
+\item The others decay like \((2\sqrt{\ell}/(\ell+1))^k\).
+\end{itemize}
+
+\end{proof}
+
+\begin{remark}
+an ordinary quotation follows.
+
+\end{remark}
+
+\begin{quote}
+Not a theorem: \textbf{Theorem.} appears later in the line.
+
+\end{quote}
+
+\begin{quote}
+\textbf{Theorem 7.} A number written by hand is left alone.
+
+\end{quote}
+
+\begin{theorem}
+in lower case, without a full stop, still counts.
+
+\end{theorem}
+
+\section{Comments in math}\label{tn-h-comments-in-math}
+
+\newcommand{\Hom}{\operatorname{Hom}}
+\begin{align}
+\Hom(E, E') &\cong I \label{eq:hom} \\ \deg \varphi &= 100\% \cdot n(I)
+- 0 \\
+\# S &= 1
++ 2
+\end{align}
+
+Inline too: \(a + b c\), and a percent sign kept: \(50\%\).
+
+\section{A proof}\label{tn-h-a-proof-2}
+
+The second heading with this text gets its own id. So does a heading with no letters:
+
+\section{2024}\label{tn-h-2024}
+
+\subsection{\emph{Remarks} \& \texttt{questions}}\label{tn-h-remarks-questions}
+
+\begin{enumerate}
+\item[$\boxtimes$] a finished task
+\item[$\square$] an open one, \hyperref[tn-h-2024]{linked}
+\end{enumerate}
+
+Struck \sout{through} text. Text with LaTeX's special characters: 100\% of \$5 \& \#1 \{x\} a\_b x\textasciicircum{}2 \textasciitilde{} \textbackslash{} \textless{} \textgreater{} \textbar{} \textquotedbl{}q\textquotedbl{}.
+A line that starts with a bracket after a break:\\
+{[}bracket] and \texttt{code with \textbackslash{} and \{braces\}}.
+
+{\ttfamily\noindent
+\mbox{}\textbackslash{}begin\{verbatim\}\\
+\mbox{}nested\\
+\mbox{}\textbackslash{}end\{verbatim\}\\
+\par}
+
+\end{document}

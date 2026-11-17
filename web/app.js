@@ -4,7 +4,9 @@
 //   - On load: restore the draft and wire the buttons. Nothing else is downloaded.
 //   - On the first Compile: load the core (tnotes.js + tnotes.wasm) and MathJax.
 //   - On every Compile: the core turns the Markdown into HTML, the HTML goes into the
-//     preview, MathJax typesets the math, and math errors are collected.
+//     preview, MathJax typesets the math, and math errors are collected. The outline
+//     is read from the headings of that HTML.
+//   - Download .tex: the core writes the LaTeX. MathJax is not needed for it.
 //   - While idle: nothing. The only timer is the debounced autosave after typing.
 //
 // The only HTML ever inserted into the page is the output of the core (see compile()).
@@ -32,6 +34,9 @@
     "$$",
     "",
     "Write `\\$` for a dollar sign that is not math.",
+    "",
+    "> **Theorem (Euler).** A block quote that starts with a bold **Theorem.**, **Lemma.**,",
+    "> **Definition.** or **Proof.** becomes a numbered block.",
     "",
   ].join("\n");
 
@@ -112,18 +117,19 @@
     return mathPromise;
   }
 
-  // Markdown to HTML, through the WebAssembly core.
-  function render(core, markdown) {
+  // Markdown to HTML ("_tn_render_cstr") or to LaTeX ("_tn_latex_cstr"), through the
+  // WebAssembly core.
+  function render(core, markdown, fn = "_tn_render_cstr") {
     const size = core.lengthBytesUTF8(markdown);
     const input = core._malloc(size + 1);
     if (!input) throw new Error("out of memory");
     core.stringToUTF8(markdown, input, size + 1);
-    const output = core._tn_render_cstr(input, size);
+    const output = core[fn](input, size);
     core._free(input);
     if (!output) throw new Error("the note could not be rendered (it may be larger than 8 MB)");
-    const html = core.UTF8ToString(output);
+    const text = core.UTF8ToString(output);
     core._tn_free(output);
-    return html;
+    return text;
   }
 
   // ---- compile -------------------------------------------------------------------
@@ -152,7 +158,9 @@
       const items = [];
       for (const el of preview.querySelectorAll(".tn-math")) {
         const raw = el.textContent;
-        items.push({ el, line: Number(el.dataset.line) || 0, tex: raw.slice(2, -2).trim() });
+        const tex = raw.slice(2, -2).trim();
+        el.setAttribute("data-tex", tex);            // kept for the outline
+        items.push({ el, line: Number(el.dataset.line) || 0, tex });
       }
       let failure = null;
       try { await MJ.typesetPromise([preview]); } catch (e) { failure = e; }
@@ -171,6 +179,7 @@
       compiledSource = text;
       compiledAt = new Date();
       showErrors();
+      showOutline();
     } catch (e) {
       setStatus("Compile failed: " + (e && e.message ? e.message : e), true);
       compiling = false;
@@ -242,6 +251,92 @@
     const total = text.split("\n").length || 1;
     source.scrollTop = Math.max(0, ((line - 1) / total) * source.scrollHeight - source.clientHeight / 3);
   }
+
+  // ---- the outline, and going between the source and the preview -------------------
+  // The core gives every heading an id and every block its source line (data-line).
+  const outlinePanel = $("outline"), outlineList = $("outline-list");
+  let located = null;                   // the block marked by the last Locate
+
+  function mark(el) {
+    if (located) located.classList.remove("tn-located");
+    located = el;
+    if (el) el.classList.add("tn-located");
+  }
+  function reveal(el) {
+    document.body.classList.remove("no-preview");
+    $("btn-toggle").setAttribute("aria-pressed", "true");
+    el.scrollIntoView({ block: "center" });
+  }
+
+  function showOutline() {
+    located = null;
+    outlineList.replaceChildren();
+    const headings = preview.querySelectorAll("h1[id], h2[id], h3[id], h4[id], h5[id], h6[id]");
+    for (const h of headings) {
+      const li = document.createElement("li");
+      li.dataset.level = h.tagName.slice(1);
+      const go = document.createElement("button");
+      go.type = "button";
+      // The heading's text as shown; for math, its TeX rather than the SVG's text.
+      const copy = h.cloneNode(true);
+      for (const m of copy.querySelectorAll(".tn-math")) m.textContent = m.getAttribute("data-tex") || "";
+      go.textContent = copy.textContent.trim() || "(empty heading)";
+      go.addEventListener("click", () => {
+        reveal(h);
+        const line = Number(h.dataset.line) || 0;
+        if (line) gotoLine(line);
+      });
+      li.appendChild(go);
+      outlineList.appendChild(li);
+    }
+    if (!headings.length) {
+      const li = document.createElement("li");
+      li.className = "empty";
+      li.textContent = "The compiled note has no headings.";
+      outlineList.appendChild(li);
+    }
+  }
+  function toggleOutline(show) {
+    outlinePanel.hidden = !show;
+    $("btn-outline").setAttribute("aria-pressed", String(show));
+    if (show && compiledSource === null) {
+      outlineList.replaceChildren();
+      const li = document.createElement("li");
+      li.className = "empty";
+      li.textContent = "Compile the note to see its headings.";
+      outlineList.appendChild(li);
+    }
+  }
+
+  // Source to preview: the last block that starts at or before the cursor's line.
+  function locate() {
+    const line = source.value.slice(0, source.selectionStart).split("\n").length;
+    let best = null, bestLine = 0;
+    for (const el of preview.querySelectorAll("[data-line]")) {
+      const n = Number(el.dataset.line);
+      if (n <= line && n >= bestLine) { best = el; bestLine = n; }
+    }
+    if (!best) { setStatus(compiledSource === null ? "Compile first; then Locate shows this line in the preview." : "Nothing in the preview comes from this line."); return; }
+    mark(best);
+    reveal(best);
+  }
+  // Preview to source: double-click a block to select its line.
+  preview.addEventListener("dblclick", (ev) => {
+    const el = ev.target instanceof Element ? ev.target.closest("[data-line]") : null;
+    if (!el || !preview.contains(el)) return;
+    ev.preventDefault();
+    window.getSelection()?.removeAllRanges();
+    gotoLine(Number(el.dataset.line));
+  });
+  // A link to a heading of the note scrolls the preview; the address bar stays as it is.
+  preview.addEventListener("click", (ev) => {
+    const a = ev.target instanceof Element ? ev.target.closest("a[href^='#']") : null;
+    if (!a) return;
+    ev.preventDefault();
+    const target = document.getElementById(a.getAttribute("href").slice(1));
+    if (target && preview.contains(target)) { mark(target); reveal(target); }
+    else setStatus("That link points at a heading this note does not have.");
+  });
 
   // ---- images ----------------------------------------------------------------------
   // The core emits <img> for https addresses only. If one fails to load, show its
@@ -355,6 +450,19 @@
 
   $("btn-save").addEventListener("click", () => download(fileStem() + ".md", source.value, "text/markdown;charset=utf-8"));
 
+  $("btn-tex").addEventListener("click", async () => {
+    try {
+      const core = await loadCore();
+      download(fileStem() + ".tex", render(core, source.value, "_tn_latex_cstr"), "application/x-tex;charset=utf-8");
+    } catch (e) {
+      setStatus("The .tex could not be written: " + (e && e.message ? e.message : e), true);
+    }
+  });
+
+  $("btn-outline").addEventListener("click", () => toggleOutline(outlinePanel.hidden));
+  $("btn-outline-close").addEventListener("click", () => toggleOutline(false));
+  $("btn-locate").addEventListener("click", locate);
+
   $("btn-pdf").addEventListener("click", async () => {
     if (compiledSource === null || source.value !== compiledSource) {
       if (!(await compile())) return;
@@ -385,6 +493,7 @@
     if (!(ev.ctrlKey || ev.metaKey) || ev.altKey) return;
     if (ev.key === "Enter") { ev.preventDefault(); compile(); }
     else if (ev.key === "\\") { ev.preventDefault(); togglePreview(); }
+    else if (ev.key === "j" || ev.key === "J") { ev.preventDefault(); locate(); }
   });
 
   // Save at once when the page is hidden or closed, and warn if the draft is not stored.
